@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 + HY-SRF05</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f2f2f2;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .contenedor {
+            max-width: 900px;
+            margin: auto;
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 0 10px #aaa;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        .datos {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 25px 0;
+        }
+
+        .tarjeta {
+            background: #eeeeee;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            min-width: 180px;
+        }
+
+        .valor {
+            font-size: 30px;
+            font-weight: bold;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: center;
+        }
+
+        th {
+            background: #dddddd;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="contenedor">
+
+    <h1>📡 ESP32 + HY-SRF05</h1>
+
+    <div class="datos">
+
+        <div class="tarjeta">
+            <h3>Distancia actual</h3>
+            <div class="valor" id="distancia">-- cm</div>
+        </div>
+
+        <div class="tarjeta">
+            <h3>Detecciones</h3>
+            <div class="valor" id="contador">0</div>
+        </div>
+
+    </div>
+
+    <h2>Registro de detecciones</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Distancia</th>
+                <th>Hora</th>
+            </tr>
+        </thead>
+
+        <tbody id="registro">
+            <tr>
+                <td colspan="3">Esperando datos del ESP32...</td>
+            </tr>
+        </tbody>
+    </table>
+
+</div>
+
+</body>
+</html>
