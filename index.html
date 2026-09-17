@@ -1,174 +1,74 @@
 #include <WiFi.h>
-#include <WebServer.h>
+#include <PubSubClient.h>
 
-// ===============================
-// DATOS DE TU RED WIFI
-// ===============================
+// ==========================================
+// WIFI
+// ==========================================
 
-const char* ssid = "NOMBRE_DE_TU_WIFI";
-const char* password = "CONTRASEÑA_DE_TU_WIFI";
+const char* WIFI_SSID = "NOMBRE_DE_TU_WIFI";
+const char* WIFI_PASSWORD = "CONTRASEÑA_WIFI";
 
-// ===============================
+// ==========================================
+// MQTT
+// ==========================================
+
+// Datos de tu broker MQTT
+const char* MQTT_SERVER = "TU_BROKER";
+const int MQTT_PORT = 8883;
+
+const char* MQTT_USER = "TU_USUARIO";
+const char* MQTT_PASSWORD = "TU_PASSWORD";
+
+// ==========================================
+// TOPICS
+// ==========================================
+
+const char* TOPIC_DISTANCIA = "esp32/hysrf05/distancia";
+const char* TOPIC_DETECCION = "esp32/hysrf05/deteccion";
+
+// ==========================================
 // PINES HY-SRF05
-// ===============================
+// ==========================================
 
 #define TRIG_PIN 5
 #define ECHO_PIN 18
 
-// ===============================
-// SERVIDOR WEB
-// ===============================
+// ==========================================
+// OBJETOS
+// ==========================================
 
-WebServer server(80);
+WiFiClient espClient;
+PubSubClient mqttClient(espClient);
 
-// ===============================
-// MEDIR DISTANCIA
-// ===============================
+// ==========================================
+// VARIABLES
+// ==========================================
 
-float medirDistancia() {
+unsigned long ultimaLectura = 0;
 
-  digitalWrite(TRIG_PIN, LOW);
-  delayMicroseconds(2);
+int detecciones = 0;
 
-  digitalWrite(TRIG_PIN, HIGH);
-  delayMicroseconds(10);
+bool objetoAnterior = false;
 
-  digitalWrite(TRIG_PIN, LOW);
+// ==========================================
+// CONECTAR WIFI
+// ==========================================
 
-  long duracion = pulseIn(ECHO_PIN, HIGH, 30000);
-
-  if (duracion == 0) {
-    return -1;
-  }
-
-  float distancia = duracion * 0.0343 / 2;
-
-  return distancia;
-}
-
-// ===============================
-// API /DISTANCIA
-// ===============================
-
-void obtenerDistancia() {
-
-  float distancia = medirDistancia();
-
-  String respuesta;
-
-  if (distancia < 0) {
-
-    respuesta = "{\"distancia\":-1}";
-
-  } else {
-
-    respuesta = "{\"distancia\":" +
-                String(distancia, 1) +
-                "}";
-  }
-
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-
-  server.send(
-    200,
-    "application/json",
-    respuesta
-  );
-}
-
-// ===============================
-// RUTA PRINCIPAL
-// ===============================
-
-void paginaESP32() {
-
-  String html = R"rawliteral(
-
-<!DOCTYPE html>
-
-<html>
-
-<head>
-
-<meta charset="UTF-8">
-
-<title>ESP32 HY-SRF05</title>
-
-</head>
-
-<body>
-
-<h1>ESP32 + HY-SRF05</h1>
-
-<p>Servidor funcionando.</p>
-
-<p>
-Distancia:
-<span id="distancia">--</span> cm
-</p>
-
-<script>
-
-function actualizar() {
-
-fetch('/distancia')
-
-.then(response => response.json())
-
-.then(data => {
-
-document.getElementById('distancia')
-.textContent = data.distancia;
-
-});
-
-}
-
-setInterval(actualizar, 2000);
-
-actualizar();
-
-</script>
-
-</body>
-
-</html>
-
-)rawliteral";
-
-  server.send(
-    200,
-    "text/html",
-    html
-  );
-}
-
-// ===============================
-// SETUP
-// ===============================
-
-void setup() {
-
-  Serial.begin(115200);
-
-  pinMode(TRIG_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
-
-  digitalWrite(TRIG_PIN, LOW);
-
-  // =============================
-  // CONECTAR WIFI
-  // =============================
+void conectarWiFi() {
 
   Serial.println();
-  Serial.println("Conectando al WiFi...");
+
+  Serial.print("Conectando a WiFi: ");
+  Serial.println(WIFI_SSID);
 
   WiFi.begin(
-    ssid,
-    password
+    WIFI_SSID,
+    WIFI_PASSWORD
   );
 
-  while (WiFi.status() != WL_CONNECTED) {
+  while (
+    WiFi.status() != WL_CONNECTED
+  ) {
 
     delay(500);
 
@@ -184,38 +84,158 @@ void setup() {
   Serial.println(
     WiFi.localIP()
   );
+}
 
-  // =============================
-  // RUTAS
-  // =============================
+// ==========================================
+// CONECTAR MQTT
+// ==========================================
 
-  server.on(
-    "/",
-    paginaESP32
+void conectarMQTT() {
+
+  while (!mqttClient.connected()) {
+
+    Serial.println(
+      "Conectando al broker MQTT..."
+    );
+
+    String clientID =
+      "ESP32-HYSRF05-" +
+      String((uint32_t)ESP.getEfuseMac(), HEX);
+
+    if (
+      mqttClient.connect(
+        clientID.c_str(),
+        MQTT_USER,
+        MQTT_PASSWORD
+      )
+    ) {
+
+      Serial.println(
+        "MQTT conectado."
+      );
+
+    } else {
+
+      Serial.print(
+        "Error MQTT: "
+      );
+
+      Serial.println(
+        mqttClient.state()
+      );
+
+      delay(3000);
+    }
+  }
+}
+
+// ==========================================
+// MEDIR DISTANCIA
+// ==========================================
+
+float medirDistancia() {
+
+  digitalWrite(
+    TRIG_PIN,
+    LOW
   );
 
-  server.on(
-    "/distancia",
-    obtenerDistancia
+  delayMicroseconds(2);
+
+  digitalWrite(
+    TRIG_PIN,
+    HIGH
   );
 
-  // =============================
-  // INICIAR SERVIDOR
-  // =============================
+  delayMicroseconds(10);
 
-  server.begin();
+  digitalWrite(
+    TRIG_PIN,
+    LOW
+  );
+
+  long duracion =
+    pulseIn(
+      ECHO_PIN,
+      HIGH,
+      30000
+    );
+
+  if (duracion == 0) {
+
+    return -1;
+  }
+
+  float distancia =
+    duracion * 0.0343 / 2;
+
+  return distancia;
+}
+
+// ==========================================
+// PUBLICAR DISTANCIA
+// ==========================================
+
+void publicarDistancia(
+  float distancia
+) {
+
+  char mensaje[20];
+
+  dtostrf(
+    distancia,
+    1,
+    1,
+    mensaje
+  );
+
+  mqttClient.publish(
+    TOPIC_DISTANCIA,
+    mensaje
+  );
+
+  Serial.print(
+    "Distancia publicada: "
+  );
+
+  Serial.print(
+    mensaje
+  );
 
   Serial.println(
-    "Servidor iniciado."
+    " cm"
   );
 }
 
-// ===============================
-// LOOP
-// ===============================
+// ==========================================
+// PUBLICAR DETECCION
+// ==========================================
 
-void loop() {
+void publicarDeteccion(
+  float distancia
+) {
 
-  server.handleClient();
+  detecciones++;
 
-}
+  String mensaje =
+    "{";
+
+  mensaje +=
+    "\"distancia\":";
+
+  mensaje +=
+    String(
+      distancia,
+      1
+    );
+
+  mensaje +=
+    ",\"detecciones\":";
+
+  mensaje +=
+    String(
+      detecciones
+    );
+
+  mensaje +=
+    "}";
