@@ -1,241 +1,110 @@
-#include <WiFi.h>
-#include <PubSubClient.h>
+import time
+import network
+import machine
+import ubinascii
+import ujson
 
-// ==========================================
-// WIFI
-// ==========================================
+from machine import Pin, time_pulse_us
+from umqtt.simple import MQTTClient, MQTTException
+import config
 
-const char* WIFI_SSID = "NOMBRE_DE_TU_WIFI";
-const char* WIFI_PASSWORD = "CONTRASEÑA_WIFI";
+trig = Pin(25, Pin.OUT, value=0)
+echo = Pin(26, Pin.IN)
 
-// ==========================================
-// MQTT
-// ==========================================
+wifi = network.WLAN(network.STA_IF)
+wifi.active(True)
 
-// Datos de tu broker MQTT
-const char* MQTT_SERVER = "TU_BROKER";
-const int MQTT_PORT = 8883;
+CLIENT_ID = b"esp32-srf05-" + ubinascii.hexlify(
+    machine.unique_id()
+)
 
-const char* MQTT_USER = "TU_USUARIO";
-const char* MQTT_PASSWORD = "TU_PASSWORD";
 
-// ==========================================
-// TOPICS
-// ==========================================
+def conectar_wifi():
+    if wifi.isconnected():
+        return
 
-const char* TOPIC_DISTANCIA = "esp32/hysrf05/distancia";
-const char* TOPIC_DETECCION = "esp32/hysrf05/deteccion";
+    print("Conectando Wi-Fi...")
+    wifi.disconnect()
+    wifi.connect(config.WIFI_SSID, config.WIFI_PASSWORD)
 
-// ==========================================
-// PINES HY-SRF05
-// ==========================================
+    inicio = time.ticks_ms()
 
-#define TRIG_PIN 5
-#define ECHO_PIN 18
+    while not wifi.isconnected():
+        if time.ticks_diff(time.ticks_ms(), inicio) > 15000:
+            wifi.disconnect()
+            raise OSError("Tiempo de espera Wi-Fi agotado")
+        time.sleep_ms(250)
 
-// ==========================================
-// OBJETOS
-// ==========================================
+    print("Wi-Fi conectado. IP:", wifi.ifconfig()[0])
 
-WiFiClient espClient;
-PubSubClient mqttClient(espClient);
 
-// ==========================================
-// VARIABLES
-// ==========================================
+def medir_distancia():
+    trig.value(0)
+    time.sleep_us(2)
+    trig.value(1)
+    time.sleep_us(10)
+    trig.value(0)
 
-unsigned long ultimaLectura = 0;
+    duracion = time_pulse_us(echo, 1, 30000)
 
-int detecciones = 0;
+    # MicroPython devuelve un valor negativo si vence el plazo.
+    if duracion <= 0:
+        return None
 
-bool objetoAnterior = false;
+    return round(duracion / 58.0, 1)
 
-// ==========================================
-// CONECTAR WIFI
-// ==========================================
 
-void conectarWiFi() {
+def ejecutar():
+    while True:
+        cliente = None
 
-  Serial.println();
+        try:
+            conectar_wifi()
 
-  Serial.print("Conectando a WiFi: ");
-  Serial.println(WIFI_SSID);
+            cliente = MQTTClient(
+                CLIENT_ID,
+                config.MQTT_HOST,
+                port=config.MQTT_PORT,
+                user=config.MQTT_USER,
+                password=config.MQTT_PASSWORD,
+                keepalive=60,
+            )
 
-  WiFi.begin(
-    WIFI_SSID,
-    WIFI_PASSWORD
-  );
+            cliente.connect(timeout=5)
+            print("MQTT conectado")
 
-  while (
-    WiFi.status() != WL_CONNECTED
-  ) {
+            while wifi.isconnected():
+                distancia = medir_distancia()
 
-    delay(500);
+                mensaje = ujson.dumps({
+                    "distancia_cm": distancia,
+                    "estado": "ok" if distancia is not None else "sin_eco",
+                })
 
-    Serial.print(".");
-  }
+                cliente.publish(
+                    config.MQTT_TOPIC,
+                    mensaje.encode(),
+                    retain=False,
+                    qos=0,
+                )
 
-  Serial.println();
+                print("Publicado:", mensaje)
+                time.sleep(1)
 
-  Serial.println("WiFi conectado.");
+            raise OSError("Se perdió la conexión Wi-Fi")
 
-  Serial.print("IP del ESP32: ");
+        except (OSError, MQTTException) as error:
+            print("Error de conexión:", error)
+            print("Reintentando en 5 segundos...")
 
-  Serial.println(
-    WiFi.localIP()
-  );
-}
+        finally:
+            if cliente is not None and cliente.sock is not None:
+                try:
+                    cliente.sock.close()
+                except OSError:
+                    pass
 
-// ==========================================
-// CONECTAR MQTT
-// ==========================================
+        time.sleep(5)
 
-void conectarMQTT() {
 
-  while (!mqttClient.connected()) {
-
-    Serial.println(
-      "Conectando al broker MQTT..."
-    );
-
-    String clientID =
-      "ESP32-HYSRF05-" +
-      String((uint32_t)ESP.getEfuseMac(), HEX);
-
-    if (
-      mqttClient.connect(
-        clientID.c_str(),
-        MQTT_USER,
-        MQTT_PASSWORD
-      )
-    ) {
-
-      Serial.println(
-        "MQTT conectado."
-      );
-
-    } else {
-
-      Serial.print(
-        "Error MQTT: "
-      );
-
-      Serial.println(
-        mqttClient.state()
-      );
-
-      delay(3000);
-    }
-  }
-}
-
-// ==========================================
-// MEDIR DISTANCIA
-// ==========================================
-
-float medirDistancia() {
-
-  digitalWrite(
-    TRIG_PIN,
-    LOW
-  );
-
-  delayMicroseconds(2);
-
-  digitalWrite(
-    TRIG_PIN,
-    HIGH
-  );
-
-  delayMicroseconds(10);
-
-  digitalWrite(
-    TRIG_PIN,
-    LOW
-  );
-
-  long duracion =
-    pulseIn(
-      ECHO_PIN,
-      HIGH,
-      30000
-    );
-
-  if (duracion == 0) {
-
-    return -1;
-  }
-
-  float distancia =
-    duracion * 0.0343 / 2;
-
-  return distancia;
-}
-
-// ==========================================
-// PUBLICAR DISTANCIA
-// ==========================================
-
-void publicarDistancia(
-  float distancia
-) {
-
-  char mensaje[20];
-
-  dtostrf(
-    distancia,
-    1,
-    1,
-    mensaje
-  );
-
-  mqttClient.publish(
-    TOPIC_DISTANCIA,
-    mensaje
-  );
-
-  Serial.print(
-    "Distancia publicada: "
-  );
-
-  Serial.print(
-    mensaje
-  );
-
-  Serial.println(
-    " cm"
-  );
-}
-
-// ==========================================
-// PUBLICAR DETECCION
-// ==========================================
-
-void publicarDeteccion(
-  float distancia
-) {
-
-  detecciones++;
-
-  String mensaje =
-    "{";
-
-  mensaje +=
-    "\"distancia\":";
-
-  mensaje +=
-    String(
-      distancia,
-      1
-    );
-
-  mensaje +=
-    ",\"detecciones\":";
-
-  mensaje +=
-    String(
-      detecciones
-    );
-
-  mensaje +=
-    "}";
+ejecutar()
