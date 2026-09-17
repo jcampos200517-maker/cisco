@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>ESP32 + HY-SRF05</title>
 
     <style>
         body {
             font-family: Arial, sans-serif;
-            background: #f2f2f2;
+            background: #eeeeee;
             margin: 0;
             padding: 20px;
         }
@@ -16,51 +17,62 @@
         .contenedor {
             max-width: 900px;
             margin: auto;
+        }
+
+        .caja {
             background: white;
-            padding: 25px;
-            border-radius: 15px;
-            box-shadow: 0 0 10px #aaa;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 12px;
+            box-shadow: 0px 2px 8px #aaaaaa;
         }
 
         h1 {
             text-align: center;
         }
 
-        .datos {
-            display: flex;
-            gap: 20px;
-            justify-content: center;
-            flex-wrap: wrap;
-            margin: 25px 0;
+        h2 {
+            color: #333333;
         }
 
-        .tarjeta {
-            background: #eeeeee;
-            padding: 20px;
-            border-radius: 10px;
+        .distancia {
             text-align: center;
-            min-width: 180px;
+            font-size: 45px;
+            font-weight: bold;
+            margin: 20px;
         }
 
-        .valor {
+        .contador {
+            text-align: center;
             font-size: 30px;
             font-weight: bold;
+        }
+
+        .estado {
+            text-align: center;
+            font-size: 18px;
+            padding: 10px;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 20px;
-        }
-
-        th, td {
-            border: 1px solid #ccc;
-            padding: 10px;
-            text-align: center;
         }
 
         th {
             background: #dddddd;
+            padding: 12px;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #cccccc;
+            text-align: center;
+        }
+
+        .info {
+            text-align: center;
+            color: #666666;
         }
     </style>
 </head>
@@ -69,41 +81,224 @@
 
 <div class="contenedor">
 
-    <h1>📡 ESP32 + HY-SRF05</h1>
+    <div class="caja">
 
-    <div class="datos">
+        <h1>📡 ESP32 + HY-SRF05</h1>
 
-        <div class="tarjeta">
-            <h3>Distancia actual</h3>
-            <div class="valor" id="distancia">-- cm</div>
-        </div>
+        <p class="info">
+            Sistema de detección y registro
+        </p>
 
-        <div class="tarjeta">
-            <h3>Detecciones</h3>
-            <div class="valor" id="contador">0</div>
+        <div class="estado" id="estado">
+            🟢 Sistema funcionando
         </div>
 
     </div>
 
-    <h2>Registro de detecciones</h2>
 
-    <table>
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>Distancia</th>
-                <th>Hora</th>
-            </tr>
-        </thead>
+    <div class="caja">
 
-        <tbody id="registro">
-            <tr>
-                <td colspan="3">Esperando datos del ESP32...</td>
-            </tr>
-        </tbody>
-    </table>
+        <h2>Distancia actual</h2>
+
+        <div class="distancia" id="distancia">
+            -- cm
+        </div>
+
+    </div>
+
+
+    <div class="caja">
+
+        <h2>Número de detecciones</h2>
+
+        <div class="contador" id="contador">
+            0
+        </div>
+
+    </div>
+
+
+    <div class="caja">
+
+        <h2>Registro de detecciones</h2>
+
+        <table>
+
+            <thead>
+                <tr>
+                    <th>Fecha y hora</th>
+                    <th>Distancia</th>
+                    <th>Evento</th>
+                </tr>
+            </thead>
+
+            <tbody id="registro">
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+
+    <div class="caja">
+
+        <p class="info">
+            Página alojada en GitHub Pages
+        </p>
+
+    </div>
 
 </div>
+
+
+<script>
+
+    let detecciones = 0;
+
+    let ultimaDeteccion = 0;
+
+
+    function obtenerDistancia() {
+
+        /*
+        SIMULACIÓN DEL HY-SRF05
+
+        Aquí se genera una distancia.
+        Más adelante esta función puede
+        sustituirse por los datos reales
+        enviados por el ESP32.
+        */
+
+        let distancia = Math.floor(Math.random() * 250) + 20;
+
+        return distancia;
+    }
+
+
+    function agregarDeteccion(distancia) {
+
+        detecciones++;
+
+        document.getElementById("contador").textContent =
+            detecciones;
+
+
+        let fecha = new Date();
+
+
+        let fechaTexto =
+            fecha.toLocaleDateString("es-CO") +
+            " " +
+            fecha.toLocaleTimeString("es-CO");
+
+
+        let fila =
+            document.createElement("tr");
+
+
+        fila.innerHTML =
+
+            "<td>" +
+            fechaTexto +
+            "</td>" +
+
+            "<td>" +
+            distancia +
+            " cm</td>" +
+
+            "<td>" +
+            "Objeto detectado" +
+            "</td>";
+
+
+        let tabla =
+            document.getElementById("registro");
+
+
+        tabla.insertBefore(
+            fila,
+            tabla.firstChild
+        );
+
+
+        /*
+        Mantener máximo 100 registros
+        */
+
+        while (tabla.children.length > 100) {
+
+            tabla.removeChild(
+                tabla.lastChild
+            );
+
+        }
+
+    }
+
+
+    function actualizarSensor() {
+
+        let distancia =
+            obtenerDistancia();
+
+
+        document.getElementById("distancia")
+            .textContent =
+            distancia + " cm";
+
+
+        /*
+        Consideramos objeto detectado
+        si está a 150 cm o menos.
+        */
+
+        if (distancia <= 150) {
+
+            let ahora =
+                Date.now();
+
+
+            /*
+            Esperar 2 segundos antes
+            de registrar otra detección.
+            */
+
+            if (
+                ahora - ultimaDeteccion >= 2000
+            ) {
+
+                agregarDeteccion(
+                    distancia
+                );
+
+                ultimaDeteccion =
+                    ahora;
+
+            }
+
+        }
+
+    }
+
+
+    /*
+    Actualizar cada 2 segundos
+    */
+
+    setInterval(
+        actualizarSensor,
+        2000
+    );
+
+
+    /*
+    Primera lectura
+    */
+
+    actualizarSensor();
+
+</script>
 
 </body>
 </html>
