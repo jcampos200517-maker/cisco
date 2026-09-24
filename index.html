@@ -1,110 +1,309 @@
-import time
-import network
-import machine
-import ubinascii
-import ujson
+<!DOCTYPE html>
 
-from machine import Pin, time_pulse_us
-from umqtt.simple import MQTTClient, MQTTException
-import config
+<html lang="es">
 
-trig = Pin(25, Pin.OUT, value=0)
-echo = Pin(26, Pin.IN)
+<head>
 
-wifi = network.WLAN(network.STA_IF)
-wifi.active(True)
+<meta charset="UTF-8">
 
-CLIENT_ID = b"esp32-srf05-" + ubinascii.hexlify(
-    machine.unique_id()
-)
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0">
 
+<title>HY-SRF05 - ESP32</title>
 
-def conectar_wifi():
-    if wifi.isconnected():
-        return
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
-    print("Conectando Wi-Fi...")
-    wifi.disconnect()
-    wifi.connect(config.WIFI_SSID, config.WIFI_PASSWORD)
+<style>
 
-    inicio = time.ticks_ms()
+body {
 
-    while not wifi.isconnected():
-        if time.ticks_diff(time.ticks_ms(), inicio) > 15000:
-            wifi.disconnect()
-            raise OSError("Tiempo de espera Wi-Fi agotado")
-        time.sleep_ms(250)
+    font-family: Arial, sans-serif;
 
-    print("Wi-Fi conectado. IP:", wifi.ifconfig()[0])
+    text-align: center;
 
+    background: #f2f2f2;
 
-def medir_distancia():
-    trig.value(0)
-    time.sleep_us(2)
-    trig.value(1)
-    time.sleep_us(10)
-    trig.value(0)
+    padding-top: 50px;
 
-    duracion = time_pulse_us(echo, 1, 30000)
+}
 
-    # MicroPython devuelve un valor negativo si vence el plazo.
-    if duracion <= 0:
-        return None
+h1 {
 
-    return round(duracion / 58.0, 1)
+    font-size: 35px;
 
+}
 
-def ejecutar():
-    while True:
-        cliente = None
+#estado {
 
-        try:
-            conectar_wifi()
+    font-size: 20px;
 
-            cliente = MQTTClient(
-                CLIENT_ID,
-                config.MQTT_HOST,
-                port=config.MQTT_PORT,
-                user=config.MQTT_USER,
-                password=config.MQTT_PASSWORD,
-                keepalive=60,
-            )
+    margin: 20px;
 
-            cliente.connect(timeout=5)
-            print("MQTT conectado")
+}
 
-            while wifi.isconnected():
-                distancia = medir_distancia()
+#distancia {
 
-                mensaje = ujson.dumps({
-                    "distancia_cm": distancia,
-                    "estado": "ok" if distancia is not None else "sin_eco",
-                })
+    font-size: 80px;
 
-                cliente.publish(
-                    config.MQTT_TOPIC,
-                    mensaje.encode(),
-                    retain=False,
-                    qos=0,
-                )
+    font-weight: bold;
 
-                print("Publicado:", mensaje)
-                time.sleep(1)
+    margin: 40px;
 
-            raise OSError("Se perdió la conexión Wi-Fi")
+}
 
-        except (OSError, MQTTException) as error:
-            print("Error de conexión:", error)
-            print("Reintentando en 5 segundos...")
+#unidad {
 
-        finally:
-            if cliente is not None and cliente.sock is not None:
-                try:
-                    cliente.sock.close()
-                except OSError:
-                    pass
+    font-size: 30px;
 
-        time.sleep(5)
+}
+
+#ultimo {
+
+    font-size: 18px;
+
+}
+
+</style>
+
+</head>
 
 
-ejecutar()
+<body>
+
+
+<h1>Sensor HY-SRF05</h1>
+
+
+<div id="estado">
+
+🟡 Conectando MQTT...
+
+</div>
+
+
+<div id="distancia">
+
+--
+
+<span id="unidad">cm</span>
+
+</div>
+
+
+<div id="ultimo">
+
+Esperando datos del ESP32...
+
+</div>
+
+
+<script>
+
+
+// ======================================
+// CONFIGURACIÓN MQTT
+// ======================================
+
+const MQTT_HOST =
+"TU_SERVIDOR_HIVEMQ";
+
+
+const MQTT_PORT = 8884;
+
+
+const MQTT_USER =
+"TU_USUARIO";
+
+
+const MQTT_PASSWORD =
+"TU_CONTRASEÑA";
+
+
+const MQTT_TOPIC =
+"esp32/hysrf05/distancia";
+
+
+// ======================================
+// CONEXIÓN MQTT
+// ======================================
+
+const cliente = mqtt.connect(
+
+    "wss://" +
+    MQTT_HOST +
+    ":" +
+    MQTT_PORT +
+    "/mqtt",
+
+    {
+
+        username: MQTT_USER,
+
+        password: MQTT_PASSWORD,
+
+        clean: true,
+
+        reconnectPeriod: 3000,
+
+        connectTimeout: 10000
+
+    }
+
+);
+
+
+// ======================================
+// CONECTADO
+// ======================================
+
+cliente.on("connect", function() {
+
+    console.log("MQTT conectado");
+
+    document.getElementById("estado").innerHTML =
+        "🟢 MQTT conectado";
+
+
+    cliente.subscribe(
+        MQTT_TOPIC,
+        function(error) {
+
+            if (error) {
+
+                console.log(
+                    "Error suscripción:",
+                    error
+                );
+
+            } else {
+
+                console.log(
+                    "Suscrito a:",
+                    MQTT_TOPIC
+                );
+
+            }
+
+        }
+    );
+
+});
+
+
+// ======================================
+// RECIBIR MENSAJES
+// ======================================
+
+cliente.on(
+    "message",
+    function(topic, mensaje) {
+
+        try {
+
+            const datos =
+                JSON.parse(
+                    mensaje.toString()
+                );
+
+
+            console.log(
+                "Datos recibidos:",
+                datos
+            );
+
+
+            if (
+                typeof datos.distancia_cm
+                === "number"
+            ) {
+
+                document.getElementById(
+                    "distancia"
+                ).innerHTML =
+
+                    datos.distancia_cm.toFixed(2) +
+
+                    '<span id="unidad"> cm</span>';
+
+
+                document.getElementById(
+                    "ultimo"
+                ).innerHTML =
+
+                    "Sensor: " +
+                    datos.sensor +
+                    "<br>" +
+
+                    "Topic MQTT: " +
+                    topic;
+
+            }
+
+        }
+
+        catch(error) {
+
+            console.log(
+                "Mensaje inválido:",
+                error
+            );
+
+        }
+
+    }
+);
+
+
+// ======================================
+// ERROR
+// ======================================
+
+cliente.on("error", function(error) {
+
+    console.log(
+        "Error MQTT:",
+        error
+    );
+
+    document.getElementById(
+        "estado"
+    ).innerHTML =
+        "🔴 Error MQTT";
+
+});
+
+
+// ======================================
+// DESCONECTADO
+// ======================================
+
+cliente.on("offline", function() {
+
+    document.getElementById(
+        "estado"
+    ).innerHTML =
+        "🟠 MQTT desconectado";
+
+});
+
+
+// ======================================
+// RECONEXIÓN
+// ======================================
+
+cliente.on("reconnect", function() {
+
+    document.getElementById(
+        "estado"
+    ).innerHTML =
+        "🟡 Reconectando MQTT...";
+
+});
+
+
+</script>
+
+
+</body>
+
+</html>
