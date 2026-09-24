@@ -1,309 +1,390 @@
 <!DOCTYPE html>
 
 <html lang="es">
-
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<meta charset="UTF-8">
+```
+<title>Monitor ESP32 - HY-SRF05</title>
 
-<meta name="viewport"
-      content="width=device-width, initial-scale=1.0">
-
-<title>HY-SRF05 - ESP32</title>
-
+<!-- Librería MQTT para JavaScript -->
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
 <style>
+    * {
+        box-sizing: border-box;
+    }
 
-body {
+    body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        background: #f2f4f7;
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
 
-    font-family: Arial, sans-serif;
+    .contenedor {
+        width: 90%;
+        max-width: 600px;
+        background: white;
+        border-radius: 20px;
+        padding: 35px;
+        text-align: center;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    }
 
-    text-align: center;
+    h1 {
+        margin-top: 0;
+        color: #1f2937;
+    }
 
-    background: #f2f2f2;
+    .subtitulo {
+        color: #6b7280;
+        margin-bottom: 30px;
+    }
 
-    padding-top: 50px;
+    .sensor {
+        border: 2px solid #e5e7eb;
+        border-radius: 15px;
+        padding: 25px;
+        margin-bottom: 25px;
+    }
 
-}
+    .sensor h2 {
+        margin-top: 0;
+        color: #374151;
+    }
 
-h1 {
+    .distancia {
+        font-size: 55px;
+        font-weight: bold;
+        color: #2563eb;
+        margin: 20px 0;
+    }
 
-    font-size: 35px;
+    .unidad {
+        font-size: 25px;
+        color: #6b7280;
+    }
 
-}
+    .estado {
+        display: inline-block;
+        padding: 10px 18px;
+        border-radius: 20px;
+        font-weight: bold;
+        margin-bottom: 20px;
+    }
 
-#estado {
+    .desconectado {
+        background: #fee2e2;
+        color: #b91c1c;
+    }
 
-    font-size: 20px;
+    .conectado {
+        background: #dcfce7;
+        color: #15803d;
+    }
 
-    margin: 20px;
+    .informacion {
+        text-align: left;
+        background: #f9fafb;
+        border-radius: 12px;
+        padding: 15px;
+        color: #4b5563;
+        font-size: 14px;
+    }
 
-}
+    .informacion p {
+        margin: 8px 0;
+    }
 
-#distancia {
-
-    font-size: 80px;
-
-    font-weight: bold;
-
-    margin: 40px;
-
-}
-
-#unidad {
-
-    font-size: 30px;
-
-}
-
-#ultimo {
-
-    font-size: 18px;
-
-}
-
+    .mensaje {
+        margin-top: 20px;
+        color: #6b7280;
+        font-size: 14px;
+    }
 </style>
+```
 
 </head>
 
-
 <body>
 
+```
+<div class="contenedor">
 
-<h1>Sensor HY-SRF05</h1>
+    <h1>Monitor ESP32</h1>
 
+    <div class="subtitulo">
+        Sensor ultrasónico HY-SRF05
+    </div>
 
-<div id="estado">
+    <div id="estado" class="estado desconectado">
+        MQTT DESCONectado
+    </div>
 
-🟡 Conectando MQTT...
+    <div class="sensor">
 
-</div>
+        <h2>Distancia detectada</h2>
 
+        <div class="distancia">
+            <span id="valor">--</span>
+            <span class="unidad">cm</span>
+        </div>
 
-<div id="distancia">
+    </div>
 
---
+    <div class="informacion">
 
-<span id="unidad">cm</span>
+        <p>
+            <strong>Broker:</strong>
+            broker.hivemq.com
+        </p>
 
-</div>
+        <p>
+            <strong>WebSocket:</strong>
+            puerto 8000
+        </p>
 
+        <p>
+            <strong>Topic:</strong>
+            col/cisco/dato
+        </p>
 
-<div id="ultimo">
+        <p>
+            <strong>Último mensaje:</strong>
+            <span id="ultimoMensaje">Ninguno</span>
+        </p>
 
-Esperando datos del ESP32...
+    </div>
+
+    <div class="mensaje" id="mensaje">
+        Esperando conexión con MQTT...
+    </div>
 
 </div>
 
 
 <script>
 
+    // ==========================================
+    // CONFIGURACIÓN MQTT
+    // ==========================================
 
-// ======================================
-// CONFIGURACIÓN MQTT
-// ======================================
+    const broker = "wss://broker.hivemq.com:8884/mqtt";
 
-const MQTT_HOST =
-"TU_SERVIDOR_HIVEMQ";
+    const topic = "col/cisco/dato";
 
-
-const MQTT_PORT = 8884;
-
-
-const MQTT_USER =
-"TU_USUARIO";
+    // ID aleatorio para evitar conflictos
+    const clientId =
+        "github_web_" +
+        Math.random().toString(16).substring(2, 10);
 
 
-const MQTT_PASSWORD =
-"TU_CONTRASEÑA";
+    // ==========================================
+    // ELEMENTOS DE LA PÁGINA
+    // ==========================================
+
+    const estado =
+        document.getElementById("estado");
+
+    const valor =
+        document.getElementById("valor");
+
+    const ultimoMensaje =
+        document.getElementById("ultimoMensaje");
+
+    const mensaje =
+        document.getElementById("mensaje");
 
 
-const MQTT_TOPIC =
-"esp32/hysrf05/distancia";
+    // ==========================================
+    // CONECTAR CON MQTT
+    // ==========================================
 
+    mensaje.innerText =
+        "Conectando con HiveMQ...";
 
-// ======================================
-// CONEXIÓN MQTT
-// ======================================
-
-const cliente = mqtt.connect(
-
-    "wss://" +
-    MQTT_HOST +
-    ":" +
-    MQTT_PORT +
-    "/mqtt",
-
-    {
-
-        username: MQTT_USER,
-
-        password: MQTT_PASSWORD,
-
-        clean: true,
-
-        reconnectPeriod: 3000,
-
-        connectTimeout: 10000
-
-    }
-
-);
-
-
-// ======================================
-// CONECTADO
-// ======================================
-
-cliente.on("connect", function() {
-
-    console.log("MQTT conectado");
-
-    document.getElementById("estado").innerHTML =
-        "🟢 MQTT conectado";
-
-
-    cliente.subscribe(
-        MQTT_TOPIC,
-        function(error) {
-
-            if (error) {
-
-                console.log(
-                    "Error suscripción:",
-                    error
-                );
-
-            } else {
-
-                console.log(
-                    "Suscrito a:",
-                    MQTT_TOPIC
-                );
-
-            }
-
+    const client = mqtt.connect(
+        broker,
+        {
+            clientId: clientId,
+            clean: true,
+            connectTimeout: 10000,
+            reconnectPeriod: 5000
         }
     );
 
-});
+
+    // ==========================================
+    // CUANDO SE CONECTA
+    // ==========================================
+
+    client.on("connect", function () {
+
+        console.log("Conectado a HiveMQ");
+
+        estado.innerText =
+            "MQTT CONECTADO";
+
+        estado.classList.remove(
+            "desconectado"
+        );
+
+        estado.classList.add(
+            "conectado"
+        );
+
+        mensaje.innerText =
+            "Conectado. Esperando datos del ESP32...";
 
 
-// ======================================
-// RECIBIR MENSAJES
-// ======================================
+        // Suscribirse al topic
 
-cliente.on(
-    "message",
-    function(topic, mensaje) {
+        client.subscribe(
+            topic,
+            function (error) {
 
-        try {
+                if (error) {
 
-            const datos =
-                JSON.parse(
-                    mensaje.toString()
-                );
+                    console.error(
+                        "Error al suscribirse:",
+                        error
+                    );
 
+                    mensaje.innerText =
+                        "Error al suscribirse al topic.";
 
-            console.log(
-                "Datos recibidos:",
-                datos
-            );
+                } else {
 
+                    console.log(
+                        "Suscrito a:",
+                        topic
+                    );
 
-            if (
-                typeof datos.distancia_cm
-                === "number"
-            ) {
-
-                document.getElementById(
-                    "distancia"
-                ).innerHTML =
-
-                    datos.distancia_cm.toFixed(2) +
-
-                    '<span id="unidad"> cm</span>';
-
-
-                document.getElementById(
-                    "ultimo"
-                ).innerHTML =
-
-                    "Sensor: " +
-                    datos.sensor +
-                    "<br>" +
-
-                    "Topic MQTT: " +
-                    topic;
-
+                    mensaje.innerText =
+                        "Esperando datos del HY-SRF05...";
+                }
             }
+        );
 
-        }
+    });
 
-        catch(error) {
 
-            console.log(
-                "Mensaje inválido:",
-                error
+    // ==========================================
+    // RECIBIR MENSAJES
+    // ==========================================
+
+    client.on("message", function (
+        topicRecibido,
+        message
+    ) {
+
+        // Convertir mensaje MQTT a texto
+
+        const texto =
+            message.toString();
+
+        console.log(
+            "Mensaje recibido:",
+            texto
+        );
+
+
+        // Mostrar mensaje original
+
+        ultimoMensaje.innerText =
+            texto;
+
+
+        // ======================================
+        // EXTRAER LA DISTANCIA
+        // ======================================
+
+        /*
+            El ESP32 envía:
+
+            Distancia: 25.43 cm
+
+            Extraemos solamente:
+
+            25.43
+        */
+
+        const resultado =
+            texto.match(
+                /[-+]?[0-9]*\.?[0-9]+/
             );
 
+
+        if (resultado) {
+
+            const distancia =
+                parseFloat(resultado[0]);
+
+
+            // Mostrar distancia
+
+            valor.innerText =
+                distancia.toFixed(2);
+
+
+            mensaje.innerText =
+                "Dato recibido correctamente desde el ESP32.";
+
         }
 
-    }
-);
+    });
 
 
-// ======================================
-// ERROR
-// ======================================
+    // ==========================================
+    // DESCONEXIÓN
+    // ==========================================
 
-cliente.on("error", function(error) {
+    client.on("close", function () {
 
-    console.log(
-        "Error MQTT:",
-        error
-    );
+        console.log(
+            "Desconectado de MQTT"
+        );
 
-    document.getElementById(
-        "estado"
-    ).innerHTML =
-        "🔴 Error MQTT";
+        estado.innerText =
+            "MQTT DESconectado";
 
-});
+        estado.classList.remove(
+            "conectado"
+        );
 
+        estado.classList.add(
+            "desconectado"
+        );
 
-// ======================================
-// DESCONECTADO
-// ======================================
+        mensaje.innerText =
+            "Conexión perdida. Intentando reconectar...";
 
-cliente.on("offline", function() {
-
-    document.getElementById(
-        "estado"
-    ).innerHTML =
-        "🟠 MQTT desconectado";
-
-});
+    });
 
 
-// ======================================
-// RECONEXIÓN
-// ======================================
+    // ==========================================
+    // ERROR
+    // ==========================================
 
-cliente.on("reconnect", function() {
+    client.on("error", function (error) {
 
-    document.getElementById(
-        "estado"
-    ).innerHTML =
-        "🟡 Reconectando MQTT...";
+        console.error(
+            "Error MQTT:",
+            error
+        );
 
-});
+        mensaje.innerText =
+            "Error de conexión con MQTT.";
 
+    });
 
 </script>
-
+```
 
 </body>
-
 </html>
