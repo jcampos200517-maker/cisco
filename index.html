@@ -1,1235 +1,162 @@
-<!DOCTYPE html>
-
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>ESP32 • HY-SRF05 • MQTT</title>
-
-<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-
-<style>
-
-* {
-    box-sizing: border-box;
-}
-
-body {
-    margin: 0;
-    font-family: Arial, Helvetica, sans-serif;
-    background: #0f172a;
-    color: white;
-}
-
-/* ==============================
-   CABECERA
-   ============================== */
-
-.header {
-    background: linear-gradient(135deg, #111827, #1e293b);
-    padding: 25px;
-    border-bottom: 1px solid #334155;
-}
-
-.header-contenido {
-    max-width: 1200px;
-    margin: auto;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 20px;
-}
-
-.titulo {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-}
-
-.icono {
-    width: 55px;
-    height: 55px;
-    background: #2563eb;
-    border-radius: 15px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 28px;
-}
-
-h1 {
-    margin: 0;
-    font-size: 25px;
-}
-
-.subtitulo {
-    color: #94a3b8;
-    margin-top: 5px;
-}
-
-/* ==============================
-   ESTADO MQTT
-   ============================== */
-
-.estado {
-    padding: 10px 18px;
-    border-radius: 30px;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.estado::before {
-    content: "";
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: #ef4444;
-}
-
-.desconectado {
-    background: #3f1d1d;
-    color: #fca5a5;
-}
-
-.conectado {
-    background: #143c2b;
-    color: #86efac;
-}
-
-.conectado::before {
-    background: #22c55e;
-    box-shadow: 0 0 12px #22c55e;
-}
-
-/* ==============================
-   CONTENIDO
-   ============================== */
-
-.contenido {
-    max-width: 1200px;
-    margin: auto;
-    padding: 30px 20px;
-}
-
-/* ==============================
-   TARJETAS
-   ============================== */
-
-.grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
-}
-
-.card {
-    background: #1e293b;
-    border: 1px solid #334155;
-    border-radius: 18px;
-    padding: 25px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-}
-
-.card-titulo {
-    color: #94a3b8;
-    font-size: 14px;
-    margin-bottom: 12px;
-}
-
-/* ==============================
-   DISTANCIA
-   ============================== */
-
-.distancia-card {
-    grid-column: span 2;
-    background: linear-gradient(135deg, #1e293b, #172554);
-}
-
-.distancia {
-    font-size: 75px;
-    font-weight: bold;
-    color: #60a5fa;
-    margin: 10px 0;
-    text-shadow: 0 0 25px rgba(96,165,250,0.25);
-}
-
-.cm {
-    font-size: 28px;
-    color: #94a3b8;
-}
-
-/* ==============================
-   ICONOS INFO
-   ============================== */
-
-.info-valor {
-    font-size: 22px;
-    font-weight: bold;
-}
-
-.info-pequeno {
-    color: #64748b;
-    margin-top: 6px;
-    font-size: 13px;
-}
-
-/* ==============================
-   GRAFICA
-   ============================== */
-
-.grafica-card {
-    margin-top: 20px;
-}
-
-canvas {
-    width: 100%;
-    height: 320px;
-}
-
-/* ==============================
-   INFORMACIÓN MQTT
-   ============================== */
-
-.mqtt-info {
-    margin-top: 20px;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 15px;
-}
-
-.mqtt-item {
-    background: #0f172a;
-    padding: 15px;
-    border-radius: 12px;
-}
-
-.mqtt-label {
-    color: #64748b;
-    font-size: 12px;
-    margin-bottom: 6px;
-}
-
-.mqtt-value {
-    color: #e2e8f0;
-    word-break: break-all;
-}
-
-/* ==============================
-   HISTORIAL
-   ============================== */
-
-.historial {
-    margin-top: 20px;
-}
-
-.historial-lista {
-    max-height: 250px;
-    overflow-y: auto;
-}
-
-.fila {
-    display: flex;
-    justify-content: space-between;
-    padding: 12px;
-    border-bottom: 1px solid #334155;
-}
-
-.fila:last-child {
-    border-bottom: none;
-}
-
-.hora {
-    color: #64748b;
-}
-
-.valor-historial {
-    color: #60a5fa;
-    font-weight: bold;
-}
-
-/* ==============================
-   MENSAJE
-   ============================== */
-
-.mensaje {
-    text-align: center;
-    color: #64748b;
-    margin-top: 20px;
-}
-
-/* ==============================
-   FOOTER
-   ============================== */
-
-footer {
-    text-align: center;
-    color: #475569;
-    padding: 25px;
-    font-size: 13px;
-}
-
-/* ==============================
-   RESPONSIVE
-   ============================== */
-
-@media (max-width: 800px) {
-
-    .header-contenido {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .grid {
-        grid-template-columns: 1fr;
-    }
-
-    .distancia-card {
-        grid-column: span 1;
-    }
-
-    .mqtt-info {
-        grid-template-columns: 1fr;
-    }
-
-    .distancia {
-        font-size: 55px;
-    }
-
-}
-
-</style>
-
-</head>
-
-<body>
-
-<!-- ======================================
-     CABECERA
-     ====================================== -->
-
-<header class="header">
-
-```
-<div class="header-contenido">
-
-    <div class="titulo">
-
-        <div class="icono">
-            📡
-        </div>
-
-        <div>
-
-            <h1>Monitor ESP32</h1>
-
-            <div class="subtitulo">
-                HY-SRF05 • Sistema IoT
-            </div>
-
-        </div>
-
-    </div>
-
-    <div
-        id="estado"
-        class="estado desconectado"
-    >
-        MQTT DESCONECTADO
-    </div>
-
-</div>
-```
-
-</header>
-
-<!-- ======================================
-     CONTENIDO
-     ====================================== -->
-
-<main class="contenido">
-
-```
-<!-- TARJETAS PRINCIPALES -->
-
-<div class="grid">
-
-
-    <!-- DISTANCIA -->
-
-    <div class="card distancia-card">
-
-        <div class="card-titulo">
-            📏 DISTANCIA DETECTADA
-        </div>
-
-        <div>
-
-            <span
-                id="distancia"
-                class="distancia"
-            >
-                --
-            </span>
-
-            <span class="cm">
-                cm
-            </span>
-
-        </div>
-
-        <div class="info-pequeno">
-            Lectura recibida desde el sensor HY-SRF05
-        </div>
-
-    </div>
-
-
-    <!-- ULTIMA ACTUALIZACION -->
-
-    <div class="card">
-
-        <div class="card-titulo">
-            🕐 ÚLTIMA ACTUALIZACIÓN
-        </div>
-
-        <div
-            id="hora"
-            class="info-valor"
-        >
-            --
-        </div>
-
-        <div class="info-pequeno">
-            Hora de recepción
-        </div>
-
-    </div>
-
-
-    <!-- MENSAJES -->
-
-    <div class="card">
-
-        <div class="card-titulo">
-            📦 MENSAJES RECIBIDOS
-        </div>
-
-        <div
-            id="contador"
-            class="info-valor"
-        >
-            0
-        </div>
-
-        <div class="info-pequeno">
-            Desde que se abrió la página
-        </div>
-
-    </div>
-
-
-    <!-- ULTIMO MENSAJE -->
-
-    <div class="card">
-
-        <div class="card-titulo">
-            💬 ÚLTIMO MENSAJE MQTT
-        </div>
-
-        <div
-            id="ultimoMensaje"
-            class="info-valor"
-        >
-            --
-        </div>
-
-        <div class="info-pequeno">
-            Mensaje recibido
-        </div>
-
-    </div>
-
-</div>
-
-
-<!-- ==================================
-     GRAFICA
-     ================================== -->
-
-<div class="card grafica-card">
-
-    <div class="card-titulo">
-        📈 DISTANCIA EN TIEMPO REAL
-    </div>
-
-    <canvas id="grafica"></canvas>
-
-</div>
-
-
-<!-- ==================================
-     INFORMACIÓN MQTT
-     ================================== -->
-
-<div class="card mqtt-info">
-
-
-    <div class="mqtt-item">
-
-        <div class="mqtt-label">
-            BROKER
-        </div>
-
-        <div class="mqtt-value">
-            broker.hivemq.com
-        </div>
-
-    </div>
-
-
-    <div class="mqtt-item">
-
-        <div class="mqtt-label">
-            PROTOCOLO
-        </div>
-
-        <div class="mqtt-value">
-            MQTT WebSocket
-        </div>
-
-    </div>
-
-
-    <div class="mqtt-item">
-
-        <div class="mqtt-label">
-            TOPIC
-        </div>
-
-        <div class="mqtt-value">
-            col/cisco/dato
-        </div>
-
-    </div>
-
-
-</div>
-
-
-<!-- ==================================
-     HISTORIAL
-     ================================== -->
-
-<div class="card historial">
-
-    <div class="card-titulo">
-        📋 HISTORIAL DE MEDICIONES
-    </div>
-
-    <div
-        id="historial"
-        class="historial-lista"
-    >
-
-        <div class="fila">
-
-            <span class="hora">
-                Esperando datos...
-            </span>
-
-            <span class="valor-historial">
-                --
-            </span>
-
-        </div>
-
-    </div>
-
-</div>
-
-
-<div
-    id="mensaje"
-    class="mensaje"
->
-    Conectando con HiveMQ...
-</div>
-```
-
-</main>
-
-<footer>
-
-```
-ESP32 + HY-SRF05 + MQTT + GitHub Pages
-```
-
-</footer>
+<!-- AGREGA ESTO DENTRO DE <head> -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 
 <script>
+/* =========================================================
+   CONFIGURACIÓN DEL CORREO
+   ========================================================= */
 
-/* =========================================
-   CONFIGURACIÓN MQTT
-   ========================================= */
+const EMAILJS_PUBLIC_KEY = "PON_AQUI_TU_PUBLIC_KEY";
+const EMAILJS_SERVICE_ID = "PON_AQUI_TU_SERVICE_ID";
+const EMAILJS_TEMPLATE_ID = "PON_AQUI_TU_TEMPLATE_ID";
 
-const broker =
-    "wss://broker.hivemq.com:8884/mqtt";
+/* 10 metros = 1000 centímetros */
+const UMBRAL_ALERTA_CM = 1000;
 
-const topic =
-    "col/cisco/dato";
+/* Evita enviar correos cada 2 segundos */
+let alertaActiva = false;
 
+/* Inicializar EmailJS */
+emailjs.init({
+    publicKey: EMAILJS_PUBLIC_KEY
+});
 
-/* =========================================
-   ELEMENTOS HTML
-   ========================================= */
 
-const estado =
-    document.getElementById("estado");
+/* =========================================================
+   FUNCIÓN PARA ENVIAR EL CORREO
+   ========================================================= */
 
-const distanciaElemento =
-    document.getElementById("distancia");
+function enviarAlertaCorreo(distancia) {
 
-const horaElemento =
-    document.getElementById("hora");
-
-const contadorElemento =
-    document.getElementById("contador");
-
-const ultimoMensajeElemento =
-    document.getElementById("ultimoMensaje");
-
-const historialElemento =
-    document.getElementById("historial");
-
-const mensajeElemento =
-    document.getElementById("mensaje");
-
-const canvas =
-    document.getElementById("grafica");
-
-const ctx =
-    canvas.getContext("2d");
-
-
-/* =========================================
-   DATOS DE LA GRÁFICA
-   ========================================= */
-
-let datos = [];
-
-let horas = [];
-
-let contador = 0;
-
-
-/* =========================================
-   AJUSTAR CANVAS
-   ========================================= */
-
-function ajustarCanvas() {
-
-    canvas.width =
-        canvas.clientWidth *
-        window.devicePixelRatio;
-
-    canvas.height =
-        320 *
-        window.devicePixelRatio;
-
-    ctx.scale(
-        window.devicePixelRatio,
-        window.devicePixelRatio
-    );
-
-}
-
-ajustarCanvas();
-
-
-window.addEventListener(
-    "resize",
-    function() {
-
-        ajustarCanvas();
-
-        dibujarGrafica();
-
-    }
-);
-
-
-/* =========================================
-   DIBUJAR GRÁFICA
-   ========================================= */
-
-function dibujarGrafica() {
-
-    const ancho =
-        canvas.clientWidth;
-
-    const alto = 320;
-
-    ctx.clearRect(
-        0,
-        0,
-        ancho,
-        alto
-    );
-
-
-    if (datos.length === 0) {
-
-        ctx.fillStyle =
-            "#64748b";
-
-        ctx.font =
-            "15px Arial";
-
-        ctx.textAlign =
-            "center";
-
-        ctx.fillText(
-            "Esperando mediciones...",
-            ancho / 2,
-            alto / 2
-        );
-
-        return;
-
-    }
-
-
-    let maximo =
-        Math.max(...datos);
-
-    let minimo =
-        Math.min(...datos);
-
-
-    if (maximo === minimo) {
-
-        maximo += 10;
-        minimo -= 10;
-
-    }
-
-
-    const margenIzquierdo = 45;
-
-    const margenDerecho = 15;
-
-    const margenSuperior = 20;
-
-    const margenInferior = 35;
-
-
-    const anchoGrafica =
-        ancho -
-        margenIzquierdo -
-        margenDerecho;
-
-    const altoGrafica =
-        alto -
-        margenSuperior -
-        margenInferior;
-
-
-    /* Líneas */
-
-    ctx.strokeStyle =
-        "#334155";
-
-    ctx.lineWidth = 1;
-
-
-    for (let i = 0; i <= 4; i++) {
-
-        const y =
-            margenSuperior +
-            (altoGrafica / 4) * i;
-
-        ctx.beginPath();
-
-        ctx.moveTo(
-            margenIzquierdo,
-            y
-        );
-
-        ctx.lineTo(
-            ancho - margenDerecho,
-            y
-        );
-
-        ctx.stroke();
-
-    }
-
-
-    /* Línea de datos */
-
-    ctx.strokeStyle =
-        "#60a5fa";
-
-    ctx.lineWidth = 3;
-
-    ctx.beginPath();
-
-
-    datos.forEach(
-        function(valor, indice) {
-
-            let x;
-
-            if (datos.length === 1) {
-
-                x =
-                    margenIzquierdo +
-                    anchoGrafica / 2;
-
-            } else {
-
-                x =
-                    margenIzquierdo +
-                    (
-                        indice /
-                        (datos.length - 1)
-                    ) *
-                    anchoGrafica;
-
-            }
-
-
-            let y =
-                margenSuperior +
-                (
-                    (maximo - valor) /
-                    (maximo - minimo)
-                ) *
-                altoGrafica;
-
-
-            if (indice === 0) {
-
-                ctx.moveTo(x, y);
-
-            } else {
-
-                ctx.lineTo(x, y);
-
-            }
-
-        }
-    );
-
-
-    ctx.stroke();
-
-
-    /* Puntos */
-
-    datos.forEach(
-        function(valor, indice) {
-
-            let x;
-
-            if (datos.length === 1) {
-
-                x =
-                    margenIzquierdo +
-                    anchoGrafica / 2;
-
-            } else {
-
-                x =
-                    margenIzquierdo +
-                    (
-                        indice /
-                        (datos.length - 1)
-                    ) *
-                    anchoGrafica;
-
-            }
-
-
-            let y =
-                margenSuperior +
-                (
-                    (maximo - valor) /
-                    (maximo - minimo)
-                ) *
-                altoGrafica;
-
-
-            ctx.fillStyle =
-                "#93c5fd";
-
-            ctx.beginPath();
-
-            ctx.arc(
-                x,
-                y,
-                4,
-                0,
-                Math.PI * 2
-            );
-
-            ctx.fill();
-
-        }
-    );
-
-
-    /* Valores máximo y mínimo */
-
-    ctx.fillStyle =
-        "#64748b";
-
-    ctx.font =
-        "12px Arial";
-
-    ctx.textAlign =
-        "right";
-
-    ctx.fillText(
-        maximo.toFixed(1) + " cm",
-        margenIzquierdo - 8,
-        margenSuperior + 5
-    );
-
-    ctx.fillText(
-        minimo.toFixed(1) + " cm",
-        margenIzquierdo - 8,
-        alto - margenInferior
-    );
-
-}
-
-
-/* =========================================
-   CONEXIÓN MQTT
-   ========================================= */
-
-const clientId =
-    "github_web_" +
-    Math.random()
-        .toString(16)
-        .substring(2, 10);
-
-
-const client =
-    mqtt.connect(
-        broker,
-        {
-
-            clientId: clientId,
-
-            clean: true,
-
-            connectTimeout: 10000,
-
-            reconnectPeriod: 5000
-
-        }
-    );
-
-
-/* =========================================
-   CONECTADO
-   ========================================= */
-
-client.on(
-    "connect",
-    function() {
-
-        console.log(
-            "Conectado a HiveMQ"
-        );
-
-
-        estado.innerText =
-            "MQTT CONECTADO";
-
-
-        estado.classList.remove(
-            "desconectado"
-        );
-
-
-        estado.classList.add(
-            "conectado"
-        );
-
-
-        mensajeElemento.innerText =
-            "Conectado a HiveMQ. Esperando datos del ESP32...";
-
-
-        client.subscribe(
-            topic,
-            function(error) {
-
-                if (error) {
-
-                    console.error(error);
-
-                    mensajeElemento.innerText =
-                        "Error al suscribirse al topic.";
-
-                } else {
-
-                    console.log(
-                        "Suscrito a:",
-                        topic
-                    );
-
-                    mensajeElemento.innerText =
-                        "Esperando mediciones del HY-SRF05...";
-
-                }
-
-            }
-        );
-
-    }
-);
-
-
-/* =========================================
-   RECIBIR MENSAJE
-   ========================================= */
-
-client.on(
-    "message",
-    function(topicRecibido, message) {
-
-        const texto =
-            message.toString();
-
-
-        console.log(
-            "Mensaje:",
-            texto
-        );
-
-
-        /* Contador */
-
-        contador++;
-
-        contadorElemento.innerText =
-            contador;
-
-
-        /* Último mensaje */
-
-        ultimoMensajeElemento.innerText =
-            texto;
-
-
-        /* Extraer número */
-
-        const resultado =
-            texto.match(
-                /[-+]?[0-9]*\.?[0-9]+/
-            );
-
-
-        if (!resultado) {
-
-            return;
-
-        }
-
-
-        const distancia =
-            parseFloat(
-                resultado[0]
-            );
-
-
-        if (isNaN(distancia)) {
-
-            return;
-
-        }
-
-
-        /* Mostrar distancia */
-
-        distanciaElemento.innerText =
-            distancia.toFixed(2);
-
-
-        /* Hora */
-
-        const ahora =
-            new Date();
-
-
-        const hora =
-            ahora.toLocaleTimeString();
-
-
-        horaElemento.innerText =
-            hora;
-
-
-        /* Agregar datos */
-
-        datos.push(distancia);
-
-        horas.push(hora);
-
-
-        /* Máximo 20 puntos */
-
-        if (datos.length > 20) {
-
-            datos.shift();
-
-            horas.shift();
-
-        }
-
-
-        /* Actualizar gráfica */
-
-        dibujarGrafica();
-
-
-        /* Actualizar historial */
-
-        actualizarHistorial();
-
-
-        mensajeElemento.innerText =
-            "✓ Datos recibidos correctamente desde el ESP32.";
-
-    }
-);
-
-
-/* =========================================
-   HISTORIAL
-   ========================================= */
-
-function actualizarHistorial() {
-
-    historialElemento.innerHTML = "";
-
-
-    for (
-        let i = datos.length - 1;
-        i >= 0;
-        i--
+    /* Verificar que los datos de EmailJS estén configurados */
+    if (
+        EMAILJS_PUBLIC_KEY === "PON_AQUI_TU_PUBLIC_KEY" ||
+        EMAILJS_SERVICE_ID === "PON_AQUI_TU_SERVICE_ID" ||
+        EMAILJS_TEMPLATE_ID === "PON_AQUI_TU_TEMPLATE_ID"
     ) {
 
-        const fila =
-            document.createElement("div");
-
-
-        fila.className =
-            "fila";
-
-
-        const hora =
-            document.createElement("span");
-
-
-        hora.className =
-            "hora";
-
-
-        hora.innerText =
-            horas[i];
-
-
-        const valor =
-            document.createElement("span");
-
-
-        valor.className =
-            "valor-historial";
-
-
-        valor.innerText =
-            datos[i].toFixed(2) +
-            " cm";
-
-
-        fila.appendChild(hora);
-
-        fila.appendChild(valor);
-
-
-        historialElemento.appendChild(
-            fila
-        );
-
+        console.log("EmailJS todavía no está configurado.");
+        return;
     }
 
-}
+    const ahora = new Date();
+
+    const parametros = {
+
+        distancia: distancia.toFixed(2),
+
+        distancia_metros: (distancia / 100).toFixed(2),
+
+        hora: ahora.toLocaleString("es-CO"),
+
+        mensaje: "ALERTA: el objeto está a 10 metros o menos.",
+
+        topic: topic
+    };
 
 
-/* =========================================
-   DESCONEXIÓN
-   ========================================= */
+    emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        parametros
+    )
 
-client.on(
-    "close",
-    function() {
+    .then(function(response) {
 
-        estado.innerText =
-            "MQTT DESCONECTADO";
-
-
-        estado.classList.remove(
-            "conectado"
+        console.log(
+            "Correo enviado correctamente:",
+            response.status,
+            response.text
         );
 
+        const alerta = document.getElementById("alertaCorreo");
 
-        estado.classList.add(
-            "desconectado"
-        );
+        if (alerta) {
 
+            alerta.innerHTML =
+                "📧 Correo de alerta enviado correctamente.";
 
-        mensajeElemento.innerText =
-            "Conexión perdida. Intentando reconectar...";
+            alerta.style.color = "#22c55e";
+        }
 
-    }
-);
+    })
 
-
-/* =========================================
-   ERROR
-   ========================================= */
-
-client.on(
-    "error",
-    function(error) {
+    .catch(function(error) {
 
         console.error(
-            "Error MQTT:",
+            "Error enviando el correo:",
             error
         );
 
+        const alerta = document.getElementById("alertaCorreo");
 
-        mensajeElemento.innerText =
-            "Error de conexión con HiveMQ.";
+        if (alerta) {
+
+            alerta.innerHTML =
+                "❌ Error al enviar el correo.";
+
+            alerta.style.color = "#ef4444";
+        }
+
+    });
+}
+
+
+/* =========================================================
+   COMPROBAR LA DISTANCIA
+   ========================================================= */
+
+function comprobarAlerta(distancia) {
+
+    const alerta = document.getElementById("alertaCorreo");
+
+
+    /*
+       Si la distancia es menor o igual a 10 metros
+       10 metros = 1000 centímetros
+    */
+
+    if (distancia <= UMBRAL_ALERTA_CM) {
+
+        if (alerta) {
+
+            alerta.innerHTML =
+                "🚨 ALERTA: distancia de 10 m o menos.";
+
+            alerta.style.color = "#ef4444";
+        }
+
+
+        /*
+           Solo manda UN correo cuando entra
+           por primera vez en la zona de alerta.
+        */
+
+        if (!alertaActiva) {
+
+            alertaActiva = true;
+
+            enviarAlertaCorreo(distancia);
+        }
 
     }
-);
 
+    else {
 
-/* =========================================
-   INICIO DE GRÁFICA
-   ========================================= */
+        /*
+           Cuando vuelve a estar por encima
+           de 10 metros, se reinicia la alerta.
+        */
 
-dibujarGrafica();
+        alertaActiva = false;
 
+        if (alerta) {
+
+            alerta.innerHTML =
+                "🟢 Distancia superior a 10 m.";
+
+            alerta.style.color = "#22c55e";
+        }
+    }
+}
 </script>
-
-</body>
-</html>
